@@ -1,0 +1,101 @@
+from .RepositoryBase import RepositoryBase, DiagramDTO
+from sqlite4 import SQLite4
+from pathlib import Path
+from time import time
+
+class SqliteRepository(RepositoryBase):
+    _db: SQLite4
+    def init(self, *params):
+        databaseFile = params[0]
+        if not Path(databaseFile).exists():
+            raise FileNotFoundError()
+        
+        self._db = SQLite4(params[0])
+        self._db.connect()
+
+    def custom_execute(self, query):
+        def execute_query():
+            with self._db.connection:
+                cursor = self._db.connection.cursor()
+                cursor.execute(query)
+                return cursor.fetchall()
+        
+        return self._db._queue_operation(execute_query)
+            
+
+
+    async def store_new_diagram(self, userId: int, diagramId: str, diagramName: str):
+        self._db.insert("UserDiagram", 
+                        {
+                            "userId": userId, 
+                            "diagramId": diagramId,
+                            "diagramName": diagramName,
+                            "timestamp": int(time())
+                        })
+        
+    
+    
+
+    async def count_diagrams(self, userId: int, searchTerm: str | None = None) -> int:
+        query = f"SELECT COUNT(1) FROM UserDiagram WHERE userId = {userId} "
+        if searchTerm != None:
+            query += f"AND diagramName LIKE '%{searchTerm}%'"
+        count = self.custom_execute(query)
+        return count[0][0]
+    
+
+    async def get_user_diagrams_page(self, userId: int, page: int, pageSize: int, searchTerm: str | None = None) -> list[DiagramDTO]:
+        query = "SELECT diagramId, diagramName, timestamp FROM UserDiagram " \
+                f"WHERE userId = {userId} "
+        if searchTerm != None:
+            query += f"AND diagramName LIKE '%{searchTerm}%'"
+
+        query += "ORDER BY timestamp DESC " \
+                 f"LIMIT {pageSize} OFFSET {page * pageSize}"
+        
+        page = self.custom_execute(query)
+        diagrams = [DiagramDTO(x[0], x[1], x[2]) for x in page]
+        return diagrams
+    
+    
+    async def user_have_diagram(self, userId: int, diagramId: str) -> bool:
+        result = self._db.select("UserDiagram", "1",
+                                  condition=f"userId = {userId} AND diagramId = '{diagramId}'")
+        return len(result) > 0
+    
+
+    async def delete_diagram(self, diagramId: str):
+        self._db.delete("UserDiagram", f"diagramId = '{diagramId}'")
+
+
+    async def cache_cacoo_data(self, organizationKey: str, folderId: int):
+        self._db.delete("CacooCache", "1 = 1")
+        self._db.insert("CacooCache", {
+            "organizationKey": organizationKey,
+            "folderId": folderId
+        })
+    
+    async def load_cacoo_data(self) -> tuple[str, int] | None:
+        cache = self._db.select("CacooCache")
+        if len(cache) > 0:
+            return cache[0]
+        return None
+
+
+    async def add_user_to_whitelist(self, userId: int):
+        self._db.insert("Whitelist", {"userId": userId})
+    
+
+    async def user_in_whitelist(self, userId: int) -> bool:
+        result = self._db.select("Whitelist", "1", f"userId = {userId}")
+        return len(result) > 0
+
+
+    async def remove_user_from_whitelist(self, userId: int):
+        self._db.delete("Whitelist", f"userId = {userId}")
+    
+
+    async def reset_white_list(self):
+        self._db.delete("Whitelist", "1 = 1")
+
+# RepositoryBase.register(SqliteRepository)
