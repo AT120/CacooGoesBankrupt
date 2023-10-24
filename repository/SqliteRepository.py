@@ -13,11 +13,20 @@ class SqliteRepository(RepositoryBase):
         self._db = SQLite4(params[0])
         self._db.connect()
 
-    def custom_execute(self, query):
+    def execute(self, query, parameters = ()):
         def execute_query():
             with self._db.connection:
                 cursor = self._db.connection.cursor()
-                cursor.execute(query)
+                cursor.execute(query, parameters)
+
+        return self._db._queue_operation(execute_query)
+        
+
+    def execute_fetch(self, query, parameters = None):
+        def execute_query():
+            with self._db.connection:
+                cursor = self._db.connection.cursor()
+                cursor.execute(query, parameters)
                 return cursor.fetchall()
         
         return self._db._queue_operation(execute_query)
@@ -35,42 +44,49 @@ class SqliteRepository(RepositoryBase):
         
     
     
-
     async def count_diagrams(self, userId: int, searchTerm: str | None = None) -> int:
-        query = f"SELECT COUNT(1) FROM UserDiagram WHERE userId = {userId} "
+        query = "SELECT COUNT(1) FROM UserDiagram WHERE userId = ? "
+        params = [userId]
         if searchTerm != None:
-            query += f"AND diagramName LIKE '%{searchTerm}%'"
-        count = self.custom_execute(query)
+            query += "AND diagramName LIKE ?"
+            params.append(f"%{searchTerm}%")
+        count = self.execute_fetch(query, params)
         return count[0][0]
     
 
     async def get_user_diagrams_page(self, userId: int, page: int, pageSize: int, searchTerm: str | None = None) -> list[DiagramDTO]:
         query = "SELECT diagramId, diagramName, timestamp FROM UserDiagram " \
-                f"WHERE userId = {userId} "
+                "WHERE userId = ? "
+        params = [userId]
         if searchTerm != None:
-            query += f"AND diagramName LIKE '%{searchTerm}%'"
+            query += "AND diagramName LIKE ? "
+            params.append(f"%{searchTerm}%")
 
         query += "ORDER BY timestamp DESC " \
-                 f"LIMIT {pageSize} OFFSET {page * pageSize}"
-        
-        page = self.custom_execute(query)
+                 "LIMIT ? OFFSET ?"
+        params.append(pageSize)
+        params.append(page * pageSize)
+        page = self.execute_fetch(query, params)
         diagrams = [DiagramDTO(x[0], x[1], x[2]) for x in page]
         return diagrams
     
     
     async def user_have_diagram(self, userId: int, diagramId: str) -> bool:
-        result = self._db.select("UserDiagram", "1",
-                                  condition=f"userId = {userId} AND diagramId = '{diagramId}'")
+        result = self.execute_fetch(
+            "SELECT 1 FROM UserDiagram WHERE userId = ? AND diagramId = ?", 
+            (userId, diagramId)
+        )
         return len(result) > 0
     
 
     async def delete_diagram(self, diagramId: str):
-        self._db.delete("UserDiagram", f"diagramId = '{diagramId}'")
+        self.execute("DELETE FROM UserDiagram WHERE diagramId = ?", (diagramId,))
 
 
     async def cache_cacoo_data(self, organizationKey: str, folderId: int):
-        self._db.delete("CacooCache", "1 = 1")
-        self._db.insert("CacooCache", {
+        self.execute("DELETE FROM CacooCache")
+        # insert тут безопастный
+        self._db.insert("CacooCache", { 
             "organizationKey": organizationKey,
             "folderId": folderId
         })
@@ -87,15 +103,15 @@ class SqliteRepository(RepositoryBase):
     
 
     async def user_in_whitelist(self, userId: int) -> bool:
-        result = self._db.select("Whitelist", "1", f"userId = {userId}")
+        result = self.execute_fetch("SELECT 1 FROM Whitelist WHERE userId = ? ", (userId, ))
         return len(result) > 0
 
 
     async def remove_user_from_whitelist(self, userId: int):
-        self._db.delete("Whitelist", f"userId = {userId}")
+        self.execute("DELETE FROM Whitelist WHERE userId = ? ", (userId, ))
     
 
     async def reset_white_list(self):
-        self._db.delete("Whitelist", "1 = 1")
+        self.execute("DELETE FROM Whitelist")
 
 # RepositoryBase.register(SqliteRepository)

@@ -22,6 +22,9 @@ class Cacoo:
         yield
         await self._session.close()
 
+    async def reset_cache(self):
+        await self._load_defaults_from_cacoo()
+
     async def _load_defaults_from_cache(self) -> bool:
         cache = await database.load_cacoo_data()
         if cache is None:

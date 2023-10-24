@@ -10,7 +10,7 @@ from paginator.Paginator import Paginator
 import paginator.DiagramsPaginator
 from auth import Auth
 from consts import Reactions
-
+from sync import lock_on_maintenance, performing_maintenance
 
 logging.basicConfig(level=logging.INFO)
 cacoo = cacoo_api.Cacoo(keys.get_cacoo_api_key())
@@ -48,36 +48,46 @@ async def on_member_remove(member: discord.Member):
 
 @_bot.command("reload_whitelist")
 @Auth.ADMIN
+@performing_maintenance
 async def _reload_whitelist(ctx: commands.Context):
-    await asyncio.gather(
-        utils.reload_whitelist(_bot, _whitelistServer),
-        ctx.message.add_reaction(Reactions.working)
-    )
-
-    await asyncio.gather(
-        ctx.message.add_reaction(Reactions.positive),
-        ctx.message.remove_reaction(Reactions.working, _bot.user)
-    )
+    await utils.reload_whitelist(_bot, _whitelistServer)
+    await ctx.message.add_reaction(Reactions.positive)
 
 @_bot.command("test")
 @Auth.ADMIN
+@performing_maintenance
 async def _test_smth(ctx: commands.Context):
-    print("i am a member of: ")
-    async for guild in _bot.fetch_guilds():
-        print(guild.name, guild.id)
+    await asyncio.sleep(10)
 
 
 @_bot.command("react")
 @Auth.ADMIN
+@performing_maintenance
 async def _test_react(ctx: commands.Context):
     await ctx.message.add_reaction(Reactions.positive)
 
+@_bot.command("reset_cacoo_cache")
+@Auth.ADMIN
+@performing_maintenance
+async def _reset_cacoo_cache(ctx: commands.Context):
+    await cacoo.reset_cache()
+    await ctx.message.add_reaction(Reactions.positive)
 
+
+@_bot.command("long")
+@Auth.ADMIN
+async def _long_operation(ctx: commands.Context):
+    await ctx.message.add_reaction(Reactions.working)
+    await asyncio.sleep(20)
+    await ctx.message.remove_reaction(Reactions.working, ctx.bot.user)
+
+    
 
 
 ##### USER COMMANDS
 
 @_bot.command("new")
+@lock_on_maintenance
 @Auth.WHITELIST
 async def _new_diagram(ctx: commands.Context, *args):
     title = " ".join(args)
@@ -100,6 +110,7 @@ async def _new_diagram(ctx: commands.Context, *args):
 
 
 @_bot.command("del")
+@lock_on_maintenance
 async def _delete_diagram(ctx: commands.Context, diagramUrl):
     diagramId = utils.extract_id_from_url(diagramUrl)
     if not await database.user_have_diagram(ctx.author.id, diagramId):
@@ -118,6 +129,7 @@ async def _delete_diagram(ctx: commands.Context, diagramUrl):
 
 
 @_bot.command("dia")
+@lock_on_maintenance
 async def _pagination_testing(ctx: commands.Context, *args):
     searchTerm = " ".join(args)
     if len(searchTerm) == 0:
@@ -127,7 +139,7 @@ async def _pagination_testing(ctx: commands.Context, *args):
     diagramsCount = await database.count_diagrams(ctx.author.id, searchTerm)
     loader = paginator.DiagramsPaginator.get_data_loader(ctx.author.id, pageSize, searchTerm)
     pag = Paginator(loader, ctx.author, diagramsCount, pageSize, 10)
-    await pag.display()
+    await pag.display(ctx.message)    
 
 
 @_bot.command("mine")

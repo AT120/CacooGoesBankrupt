@@ -18,4 +18,3 @@ async def reload_whitelist(bot: discord.Client, whitelistServerId: int):
     async for member in guild.fetch_members(limit=None):
         if (member.id != bot.user.id):
             await database.add_user_to_whitelist(member.id)
-        

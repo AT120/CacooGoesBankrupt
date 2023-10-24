@@ -2,7 +2,7 @@ from typing import Optional
 import discord
 import math
 from collections.abc import Awaitable
-
+from sync import lock_on_maintenance
 class Paginator(discord.ui.View):
     _current_page = 0
     _data_by_page = None
@@ -21,9 +21,9 @@ class Paginator(discord.ui.View):
         self._reciever = reciever
         self._update_button_status()
     
-    async def display(self):
+    async def display(self, reply = None):
         content = await self.render_page()
-        message = await self._reciever.send(content, view=self, suppress_embeds=True)
+        message = await self._reciever.send(content, reference=reply, view=self, suppress_embeds=True)
         self._original_message = message
 
 
@@ -44,6 +44,7 @@ class Paginator(discord.ui.View):
 
 
     @discord.ui.button(emoji="\u23EA")
+    @lock_on_maintenance
     async def _prev_button_handler(self, interaction: discord.Interaction, pressed: discord.ui.Button):
         self._current_page -= 1
         self._update_button_status()
@@ -53,6 +54,7 @@ class Paginator(discord.ui.View):
 
 
     @discord.ui.button(emoji="\u23E9")
+    @lock_on_maintenance
     async def _next_button_handler(self, interaction: discord.Interaction, pressed: discord.ui.Button):
         self._current_page += 1
         self._update_button_status()
