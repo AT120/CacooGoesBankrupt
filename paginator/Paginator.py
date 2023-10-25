@@ -9,22 +9,15 @@ class Paginator(discord.ui.View):
     _count = 0
     _page_size = 0
     _last_page = 0
-    _reciever = None
-    _original_message: discord.Message = None
 
-    def __init__(self, data_by_page, reciever, count: int, page_size: int = 5, timeout: float | None = 180):
+
+    def __init__(self, data_by_page, count: int, page_size: int = 5, timeout: float | None = 180):
         super().__init__(timeout=timeout)
         self._page_size = page_size
         self._data_by_page = data_by_page
         self._count = count
         self._last_page = math.ceil(count / page_size) - 1
-        self._reciever = reciever
         self._update_button_status()
-    
-    async def display(self, reply = None):
-        content = await self.render_page()
-        message = await self._reciever.send(content, reference=reply, view=self, suppress_embeds=True)
-        self._original_message = message
 
 
     async def render_page(self) -> str:
@@ -62,6 +55,3 @@ class Paginator(discord.ui.View):
         newContent = await self.render_page()
         # enable prev button 
         await interaction.response.edit_message(content=newContent, view=self)
-
-    async def on_timeout(self) -> None:
-        await self._original_message.edit(view=None, suppress=True)

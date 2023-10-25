@@ -1,18 +1,22 @@
 import asyncio
 from discord.ext import commands
 from consts import Reactions
+from functools import wraps
+
 MAINTENANCE_LOCK = asyncio.Lock()
 REQUESTS_IN_PROCESS = 0
 MAINTENANCE_BEING_PERFORMED = False
 
+async def empty(*args, **kwargs):
+    pass
+
 def lock_on_maintenance(command):
-    async def inner(ctx: commands.Context, *args):
+    @wraps(command)
+    async def inner(*args, **kwargs):
         global REQUESTS_IN_PROCESS
-        was_under_maintenance = False
         if MAINTENANCE_BEING_PERFORMED:
             try:
-                await ctx.message.add_reaction(Reactions.working)
-                was_under_maintenance = True
+                await args[0].response.defer(ephemeral=True)
             except:
                 pass
 
@@ -21,13 +25,11 @@ def lock_on_maintenance(command):
         MAINTENANCE_LOCK.release()
 
         try:
-            await command(ctx, *args)
+            await command(*args, **kwargs)
         except:
             raise
         finally:
             REQUESTS_IN_PROCESS -= 1
-            if was_under_maintenance:
-                await ctx.message.remove_reaction(Reactions.working, ctx.bot.user)
   
     
     return inner

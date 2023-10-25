@@ -1,8 +1,10 @@
 from discord.ext import commands
+import discord
 from repository.repository import database
 from consts import Reactions
+from functools import wraps
 
-class Auth:
+class AuthCommand:
     def ADMIN(command):
         async def inner(ctx: commands.Context, *args):
             if ctx.author.id != 477114347496407040: #TODO: in config
@@ -20,5 +22,17 @@ class Auth:
                 return 
             
             await command(ctx, *args)
+
+        return inner
+
+class AuthSlash:
+    def WHITELIST(command):
+        @wraps(command)
+        async def inner(interaction: discord.Interaction, *args, **kwargs):
+            if not await database.user_in_whitelist(interaction.user.id):
+                await interaction.response.send_message(Reactions.unauthorized) #TODO: модалку с ошибкой
+                return 
+            
+            await command(interaction, *args, **kwargs)
 
         return inner
