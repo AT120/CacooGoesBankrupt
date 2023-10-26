@@ -30,7 +30,7 @@ class AuthSlash:
         @wraps(command)
         async def inner(interaction: discord.Interaction, *args, **kwargs):
             if not await database.user_in_whitelist(interaction.user.id):
-                await interaction.response.send_message(Reactions.unauthorized) #TODO: модалку с ошибкой
+                await interaction.response.send_message(Reactions.unauthorized) #TODO: модалку с ошибкой. FAIL. Это не работатет
                 return 
             
             await command(interaction, *args, **kwargs)

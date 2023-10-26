@@ -98,8 +98,8 @@ class SqliteRepository(RepositoryBase):
         return None
 
 
-    async def add_user_to_whitelist(self, userId: int):
-        self._db.insert("Whitelist", {"userId": userId})
+    async def add_user_to_whitelist(self, userId: int, userName: str):
+        self._db.insert("Whitelist", {"userId": userId, "userName": userName})
     
 
     async def user_in_whitelist(self, userId: int) -> bool:

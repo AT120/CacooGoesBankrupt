@@ -43,7 +43,7 @@ class RepositoryBase(ABC):
         pass
 
     @abstractmethod
-    async def add_user_to_whitelist(self, userId: int):
+    async def add_user_to_whitelist(self, userId: int, userName: str):
         pass
 
     @abstractmethod
