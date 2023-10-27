@@ -11,7 +11,8 @@ import utils
 from paginator.DiagramsPaginator import *
 from auth import *
 from consts import Reactions
-from sync import lock_on_maintenance, performing_maintenance
+from maintenance import lock_on_maintenance, performing_maintenance
+from enum import Enum
 
 logging.basicConfig(level=logging.INFO)
 cacoo = cacoo_api.Cacoo(keys.get_cacoo_api_key())
@@ -29,7 +30,7 @@ _whitelistServer = 1166037428906229840 #TODO: in config
 @_client.event
 async def on_ready():
     print(f"logged in as {_client.user}")
-    await utils.reload_whitelist(_client, _whitelistServer)
+    await utils.reload_whitelist(_client, database, _whitelistServer)
 
 
 @_client.event
@@ -49,7 +50,7 @@ async def on_member_remove(member: discord.Member):
 @AuthCommand.ADMIN
 @performing_maintenance
 async def _reload_whitelist(ctx: commands.Context):
-    await utils.reload_whitelist(_client, _whitelistServer)
+    await utils.reload_whitelist(_client, database, _whitelistServer) #TODO: try catch
     await ctx.message.add_reaction(Reactions.positive)
 
 @_client.command("test")
@@ -75,14 +76,23 @@ async def _sync_commands(ctx: commands.Context):
 @AuthCommand.ADMIN
 @performing_maintenance
 async def _reset_cacoo_cache(ctx: commands.Context):
-    await cacoo.reset_cache()
+    await cacoo.reset_cache() #TODO: try catch
     await ctx.message.add_reaction(Reactions.positive)
 
+
+@_tree.command(name="stats", description="статистика использования бота")
+@app_commands.describe(time_span="временной промежуток для показа статистики")
+@app_commands.choices(time_span=[
+    app_commands.Choice(name="За последние 7 дней", value=0),
+    app_commands.Choice(name="За последние 30 дней", value=1),
+    app_commands.Choice(name="За все время", value=2),
+])
+@AuthSlash.ADMIN
+async def _provide_stats(interaction: discord.Interaction, time_span: app_commands.Choice[int]):
     
-@_client.command("stats")
-@AuthCommand.ADMIN
-async def _provide_stats(ctx: commands.Context):
-    pass
+
+
+
 
 ###### USER COMMANDS
 
@@ -123,6 +133,7 @@ async def _new_diagram(interaction: discord.Interaction, title: str = ""):
     )
 
 
+
 @_tree.command(name="del", description="Удалить диаграмму")
 @app_commands.describe(name="название диаграммы, которую нужно удалить")
 @lock_on_maintenance
@@ -159,16 +170,14 @@ async def _delete_diagram(interaction: discord.Interaction, name: str):
 
 
 @_delete_diagram.autocomplete("name")
+@utils.timeit
 async def _remove_inline_autocomplete(
     interaction: discord.Interaction, 
     current: str, 
     # namespace: app_commands.Namespace
 ) -> List[app_commands.Choice[str]]:
-    diagrams = await database.get_user_diagrams_page(
-        interaction.user.id,
-        0, 5, current
-    )
-    return [app_commands.Choice(name=dia.name, value=dia.id) for dia in diagrams]
+    diagrams = await database.get_diagrams_page(0, 5, interaction.user.id, current)
+    return [app_commands.Choice(name=dia.name_with_time()[:100], value=dia.id) for dia in diagrams]
 
 
 @_tree.command(name="dia", description="Посмотреть список своих диаграмм")
@@ -183,16 +192,8 @@ async def _list_diagrams(interaction: discord.Interaction, search: str = ""):
     pageSize = 10
     authorId = interaction.user.id 
     diagramsCount = await database.count_diagrams(authorId, search)
-    loader = get_data_loader(authorId, pageSize, search)
-    pag = DiagramsPaginator(loader, diagramsCount, pageSize, 30)
+    pag = DiagramsPaginator(authorId, search, diagramsCount, pageSize, 30)
     await pag.display(interaction, suppress_embeds=True, ephemeral=True)
-
-
-# @_tree.command(name="rem")
-# @app_commands.describe()
-# @lock_on_maintenance
-# async def _remove_inline(interaction: discord.Interaction, search: str):
-#     await interaction.response.send_message(f"about to delete {search}")
 
 
 

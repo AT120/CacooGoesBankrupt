@@ -10,7 +10,7 @@ from paginator.Paginator import Paginator
 import paginator.DiagramsPaginator
 from auth import AuthCommand
 from consts import Reactions
-from sync import lock_on_maintenance, performing_maintenance
+from maintenance import lock_on_maintenance, performing_maintenance
 
 logging.basicConfig(level=logging.INFO)
 cacoo = cacoo_api.Cacoo(keys.get_cacoo_api_key())

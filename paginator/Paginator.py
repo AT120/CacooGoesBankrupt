@@ -2,7 +2,7 @@ from typing import Optional
 import discord
 import math
 from collections.abc import Awaitable
-from sync import lock_on_maintenance
+from maintenance import lock_on_maintenance
 class Paginator(discord.ui.View):
     _current_page = 0
     _data_by_page = None

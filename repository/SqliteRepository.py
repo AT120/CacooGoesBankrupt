@@ -54,16 +54,36 @@ class SqliteRepository(RepositoryBase):
         return count[0][0]
     
 
-    async def get_user_diagrams_page(self, userId: int, page: int, pageSize: int, searchTerm: str | None = None) -> list[DiagramDTO]:
-        query = "SELECT diagramId, diagramName, timestamp FROM UserDiagram " \
-                "WHERE userId = ? "
-        params = [userId]
-        if searchTerm != None:
-            query += "AND diagramName LIKE ? "
-            params.append(f"%{searchTerm}%")
+    async def get_diagrams_page(
+        self, 
+        page: int, 
+        pageSize: int, 
+        userId: int | None = None, 
+        searchTerm: str | None = None,
+        after: int | None = None
+    ) -> list[DiagramDTO]:
+        params = []
+        query = "SELECT diagramId, diagramName, timestamp FROM UserDiagram " 
+                
+        predicates = []
+        if userId != None:
+            predicates.append("userId = ?")
+            params.append(userId)
 
-        query += "ORDER BY timestamp DESC " \
-                 "LIMIT ? OFFSET ?"
+        if after != None:
+            predicates.append("timestamp > ?")
+            params.append(after)
+
+        if searchTerm != None:
+            predicates.append("diagramName LIKE ?")
+            params.append(f"%{searchTerm}%")
+        
+        if len(predicates) > 0:
+            query += "WHERE " + " AND ".join(predicates)
+            
+        query += " ORDER BY timestamp DESC" \
+                 " LIMIT ? OFFSET ?"
+        
         params.append(pageSize)
         params.append(page * pageSize)
         page = self.execute_fetch(query, params)

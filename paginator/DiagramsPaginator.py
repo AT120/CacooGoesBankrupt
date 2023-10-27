@@ -3,18 +3,15 @@ import utils
 from paginator.Paginator import Paginator
 import discord
 
-def get_data_loader(userId: int, pageSize: int, searchTerm: str | None):
-    async def load_data(page):
-        diagrams = await database.get_user_diagrams_page(userId, page, pageSize, searchTerm)
-        return [f"[{dia.name}]({utils.make_url_from_id(dia.id)})" for dia in diagrams]
-
-    return load_data
-
 class DiagramsPaginator(Paginator):
     _original_message: discord.InteractionMessage = None
 
-    def __init__(self, data_by_page, count: int, page_size: int = 5, timeout: float | None = 180):
-        super().__init__(data_by_page, count, page_size, timeout)
+    def __init__(self, userId: int, searchTerm: str | None, count: int, page_size: int = 5, timeout: float | None = 180):
+        async def load_data(page):
+            diagrams = await database.get_diagrams_page(page, page_size, userId, searchTerm)
+            return [f"[{dia.name}]({utils.make_url_from_id(dia.id)})" for dia in diagrams]
+        
+        super().__init__(load_data, count, page_size, timeout)
 
     async def display(self, interaction: discord.Interaction, **kwargs):
         content = await self.render_page()

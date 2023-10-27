@@ -1,6 +1,7 @@
 import discord
-from repository.repository import database
 import logging
+import time
+from functools import wraps
 
 def extract_id_from_url(diagramUrl: str) -> str:
     urlParts = diagramUrl.split("/")
@@ -13,7 +14,7 @@ def make_url_from_id(diagramId: str) -> str:
     return f"https://cacoo.com/diagrams/{diagramId}"
 
 
-async def reload_whitelist(bot: discord.Client, whitelistServerId: int):
+async def reload_whitelist(bot: discord.Client, database, whitelistServerId: int):
     await database.reset_white_list()
     guild = await bot.fetch_guild(whitelistServerId, with_counts=False)
     async for member in guild.fetch_members(limit=None):
@@ -25,3 +26,22 @@ async def reload_whitelist(bot: discord.Client, whitelistServerId: int):
 async def defer_interaction(interaction: discord.Interaction, **kwargs):
     if not interaction.response.is_done():
         await interaction.response.defer(**kwargs)
+
+
+def format_time(timestamp: int) -> str:
+    datetime = time.localtime(timestamp)
+    return time.strftime("%d/%m/%y %H:%M", datetime)
+
+
+
+def timeit(command):
+    @wraps(command)
+    async def inner(*args, **kwargs):
+        startTime = time.time()
+        res = await command(*args, **kwargs)
+        logging.info(f"{args[0].id} - {(time.time()-startTime)*1000}ms")
+        return res
+
+    return inner
+
+

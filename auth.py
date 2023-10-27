@@ -26,6 +26,18 @@ class AuthCommand:
         return inner
 
 class AuthSlash:
+    def ADMIN(command):
+        @wraps(command)
+        async def inner(interaction: discord.Interaction, *args, **kwargs):
+            if interaction.user.id != 477114347496407040: #TODO: in config
+                await interaction.response.send_message(Reactions.unauthorized) #TODO: модалку с ошибкой. FAIL. Это не работатет
+                return 
+            
+            await command(interaction, *args, **kwargs)
+
+        return inner
+    
+
     def WHITELIST(command):
         @wraps(command)
         async def inner(interaction: discord.Interaction, *args, **kwargs):

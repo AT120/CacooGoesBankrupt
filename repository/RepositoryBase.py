@@ -1,12 +1,15 @@
 from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
-
+from utils import format_time
 @dataclass
 class DiagramDTO:
     id: str
     name: str
     creationTime: int
+
+    def name_with_time(self) -> str:
+        return f'"{self.name}" от {format_time(self.creationTime)}'
 
 
 class RepositoryBase(ABC):
@@ -23,7 +26,14 @@ class RepositoryBase(ABC):
         pass
     
     @abstractmethod
-    async def get_user_diagrams_page(self, userId: int, page: int, pageSize: int, searchTerm: str| None = None) -> list[DiagramDTO]:
+    async def get_diagrams_page(
+        self, 
+        page: int, 
+        pageSize: int, 
+        userId: int | None = None,
+        searchTerm: str| None = None,
+        after: int | None = None
+    ) -> list[DiagramDTO]:
         pass
 
     @abstractmethod
