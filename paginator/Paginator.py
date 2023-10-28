@@ -3,26 +3,30 @@ import discord
 import math
 from collections.abc import Awaitable
 from maintenance import lock_on_maintenance
+
+#TODO: отрефакторить пагинаторы
 class Paginator(discord.ui.View):
     _current_page = 0
     _data_by_page = None
     _count = 0
     _page_size = 0
     _last_page = 0
+    _prefix = ""
 
 
-    def __init__(self, data_by_page, count: int, page_size: int = 5, timeout: float | None = 180):
+    def __init__(self, data_by_page, count: int, page_size: int = 5, timeout: float | None = 180, prefix: str = ""):
         super().__init__(timeout=timeout)
         self._page_size = page_size
         self._data_by_page = data_by_page
         self._count = count
         self._last_page = math.ceil(count / page_size) - 1
+        self._prefix = prefix
         self._update_button_status()
 
 
     async def render_page(self) -> str:
         data = await self._data_by_page(self._current_page)
-        content = ""
+        content = self._prefix
         for i in data:
             content += f"- {i}\n"
         

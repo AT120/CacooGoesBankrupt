@@ -1,5 +1,4 @@
 from aiohttp import web
-import cacoo_api
 import discord_bot
 
 discord_bot.database.init("database.db") #TODO: in config

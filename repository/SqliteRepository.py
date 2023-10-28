@@ -1,7 +1,8 @@
-from .RepositoryBase import RepositoryBase, DiagramDTO
+from .RepositoryBase import *
 from sqlite4 import SQLite4
 from pathlib import Path
 from time import time
+from typing import Sequence
 
 class SqliteRepository(RepositoryBase):
     _db: SQLite4
@@ -30,7 +31,13 @@ class SqliteRepository(RepositoryBase):
                 return cursor.fetchall()
         
         return self._db._queue_operation(execute_query)
-            
+    
+
+    def build_predicate(self, predicates):
+        if len(predicates) == 0:
+            return ""
+
+        return "WHERE " + " AND ".join(predicates)
 
 
     async def store_new_diagram(self, userId: int, diagramId: str, diagramName: str):
@@ -44,12 +51,30 @@ class SqliteRepository(RepositoryBase):
         
     
     
-    async def count_diagrams(self, userId: int, searchTerm: str | None = None) -> int:
-        query = "SELECT COUNT(1) FROM UserDiagram WHERE userId = ? "
-        params = [userId]
+    async def count_diagrams(
+        self,
+        userId: int | None = None,
+        searchTerm: str | None = None,
+        after: int | None = None
+    ) -> int:
+        query = "SELECT COUNT(1) FROM UserDiagram "
+        predicates = []
+        params = []
+
+        if userId != None:
+            predicates.append("userId = ?")
+            params.append(userId)
+
         if searchTerm != None:
-            query += "AND diagramName LIKE ?"
+            predicates.append("diagramName LIKE ?")
             params.append(f"%{searchTerm}%")
+
+        if after != None:
+            predicates.append("timestamp > ?")
+            params.append(after)
+
+        query += self.build_predicate(predicates)
+
         count = self.execute_fetch(query, params)
         return count[0][0]
     
@@ -61,7 +86,7 @@ class SqliteRepository(RepositoryBase):
         userId: int | None = None, 
         searchTerm: str | None = None,
         after: int | None = None
-    ) -> list[DiagramDTO]:
+    ) -> Sequence[DiagramDTO]:
         params = []
         query = "SELECT diagramId, diagramName, timestamp FROM UserDiagram " 
                 
@@ -78,9 +103,7 @@ class SqliteRepository(RepositoryBase):
             predicates.append("diagramName LIKE ?")
             params.append(f"%{searchTerm}%")
         
-        if len(predicates) > 0:
-            query += "WHERE " + " AND ".join(predicates)
-            
+        query += self.build_predicate(predicates)
         query += " ORDER BY timestamp DESC" \
                  " LIMIT ? OFFSET ?"
         
@@ -99,8 +122,13 @@ class SqliteRepository(RepositoryBase):
         return len(result) > 0
     
 
-    async def delete_diagram(self, diagramId: str):
+    async def delete_diagram(self, userId: int, diagramId: str):
         self.execute("DELETE FROM UserDiagram WHERE diagramId = ?", (diagramId,))
+        if (
+            await self.count_diagrams(userId=userId) == 0 and
+            not await self.user_in_whitelist(userId)
+        ):
+            self.execute("DELETE FROM Users WHERE userId = ?", (userId,))
 
 
     async def cache_cacoo_data(self, organizationKey: str, folderId: int):
@@ -119,19 +147,63 @@ class SqliteRepository(RepositoryBase):
 
 
     async def add_user_to_whitelist(self, userId: int, userName: str):
-        self._db.insert("Whitelist", {"userId": userId, "userName": userName})
+        self._db.insert("Users", {"userId": userId, "userName": userName})
+        self.execute("UPDATE Users SET whitelisted = 1 WHERE userId = ?", (userId,))
     
 
     async def user_in_whitelist(self, userId: int) -> bool:
-        result = self.execute_fetch("SELECT 1 FROM Whitelist WHERE userId = ? ", (userId, ))
-        return len(result) > 0
+        result = self.execute_fetch("SELECT whitelisted FROM Users WHERE userId = ? ", (userId, ))
+        return len(result) > 0 and result[0][0]
 
 
     async def remove_user_from_whitelist(self, userId: int):
-        self.execute("DELETE FROM Whitelist WHERE userId = ? ", (userId, ))
+        self.execute("UPDATE Users SET whitelisted = 0 WHERE userId = ? ", (userId, ))
+        # self.execute("DELETE FROM Whitelist WHERE userId = ? ", (userId, ))
     
 
     async def reset_white_list(self):
-        self.execute("DELETE FROM Whitelist")
+        self.execute("UPDATE Users SET whitelisted = 0")
+
+
+    async def user_diagrams_count(
+            self,
+            page: int, 
+            pageSize: int, 
+            after: int | None = None
+        ) -> Sequence[UserDiagramsCount]:
+        query = "SELECT UserDiagram.userId, userName, COUNT(diagramId) FROM UserDiagram " \
+                "INNER JOIN Users on UserDiagram.userId = Users.userId "
+        
+        params = []
+        if after != None:
+            query += "WHERE timestamp > ? "
+            params.append(after)
+
+        query += "GROUP BY UserDiagram.userId " \
+                 "ORDER BY COUNT(diagramId) DESC " \
+                 "LIMIT ? OFFSET ?"
+        
+        params.append(pageSize)
+        params.append(page * pageSize)
+        result = self.execute_fetch(query, params)
+        return [UserDiagramsCount(i[0], i[1], i[2]) for i in result]
+    
+    async def count_users(self,  after: int | None = None) -> int:
+        query = "SELECT COUNT(DISTINCT userId) FROM UserDiagram "
+        params = []
+        if (after != None):
+            query += "WHERE timestamp > ?"
+            params.append(after)
+
+        res = self.execute_fetch(query, params)
+        return res[0][0] 
+    
+    async def search_users(self, page: int, pageSize: int, searchTerm: str) -> Sequence[Tuple[int, str]]:
+        query = "SELECT userId, userName FROM Users " \
+                "WHERE userName LIKE ? " \
+                "LIMIT ? OFFSET ? "
+        params = [f"%{searchTerm}%", pageSize, page*pageSize]
+        return self.execute_fetch(query, params)
+
 
 # RepositoryBase.register(SqliteRepository)

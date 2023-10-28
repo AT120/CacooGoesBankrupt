@@ -1,6 +1,6 @@
 import discord
 from discord.ext import commands
-import cacoo_api
+import bl.cacoo_api as cacoo_api
 import keys
 import logging
 from repository.repository import database

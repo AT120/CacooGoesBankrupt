@@ -23,7 +23,7 @@ async def reload_whitelist(bot: discord.Client, database, whitelistServerId: int
             
     logging.info("Whitelist have been reloaded")
 
-async def defer_interaction(interaction: discord.Interaction, **kwargs):
+async def ensure_defer(interaction: discord.Interaction, **kwargs):
     if not interaction.response.is_done():
         await interaction.response.defer(**kwargs)
 
@@ -31,6 +31,7 @@ async def defer_interaction(interaction: discord.Interaction, **kwargs):
 def format_time(timestamp: int) -> str:
     datetime = time.localtime(timestamp)
     return time.strftime("%d/%m/%y %H:%M", datetime)
+
 
 
 
@@ -44,4 +45,17 @@ def timeit(command):
 
     return inner
 
+
+def split_term_page(query: str):
+    sepIdx = query.rfind("/")
+    if (sepIdx == -1):
+        return query, 0
+    term, page = query[:sepIdx], query[sepIdx+1:]
+    try:
+        page = int(page)
+    except:
+        return term, 0
+    page -= 1
+    page = 0 if page < 0 else page
+    return term, page 
 

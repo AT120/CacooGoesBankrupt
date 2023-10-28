@@ -2,6 +2,8 @@ from abc import ABC
 from abc import abstractmethod
 from dataclasses import dataclass
 from utils import format_time
+from typing import Sequence, Tuple
+
 @dataclass
 class DiagramDTO:
     id: str
@@ -10,6 +12,12 @@ class DiagramDTO:
 
     def name_with_time(self) -> str:
         return f'"{self.name}" от {format_time(self.creationTime)}'
+
+@dataclass
+class UserDiagramsCount:
+    userId: int
+    userName: str
+    diagramsCount: int
 
 
 class RepositoryBase(ABC):
@@ -33,7 +41,7 @@ class RepositoryBase(ABC):
         userId: int | None = None,
         searchTerm: str| None = None,
         after: int | None = None
-    ) -> list[DiagramDTO]:
+    ) -> Sequence[DiagramDTO]:
         pass
 
     @abstractmethod
@@ -41,7 +49,7 @@ class RepositoryBase(ABC):
         pass
 
     @abstractmethod
-    async def delete_diagram(self, diagramId: str):
+    async def delete_diagram(self, userId: int, diagramId: str):
         pass
 
     @abstractmethod
@@ -66,4 +74,21 @@ class RepositoryBase(ABC):
 
     @abstractmethod
     async def reset_white_list(self):
+        pass
+
+    @abstractmethod
+    async def user_diagrams_count(
+        self,
+        page: int,
+        pageSize: int, 
+        after: int | None = None
+    ) -> Sequence[UserDiagramsCount]:
+        pass
+
+    @abstractmethod
+    async def count_users(self, after: int | None = None) -> int:
+        pass
+
+    @abstractmethod
+    async def search_users(self, page: int, pageSize: int, searchTerm: str) -> Sequence[Tuple[int, str]]:
         pass

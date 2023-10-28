@@ -2,20 +2,22 @@ import discord
 from discord.ext import commands
 from discord import app_commands
 from typing import List
-import cacoo_api
+from bl.cacoo_api import cacoo
+from bl.shared_diagram_service import *
+import bl.cacoo_api as cacoo_api
 import keys
 import logging
 from repository.repository import database
 import asyncio
 import utils
-from paginator.DiagramsPaginator import *
+from paginator.DiagramsPaginator import DiagramsPaginator
+from paginator.StatsPaginator import StatsPaginator
 from auth import *
 from consts import Reactions
 from maintenance import lock_on_maintenance, performing_maintenance
-from enum import Enum
+from time import time
 
 logging.basicConfig(level=logging.INFO)
-cacoo = cacoo_api.Cacoo(keys.get_cacoo_api_key())
 
 _intents = discord.Intents.default()
 _intents.members = True
@@ -83,16 +85,71 @@ async def _reset_cacoo_cache(ctx: commands.Context):
 @_tree.command(name="stats", description="статистика использования бота")
 @app_commands.describe(time_span="временной промежуток для показа статистики")
 @app_commands.choices(time_span=[
-    app_commands.Choice(name="За последние 7 дней", value=0),
-    app_commands.Choice(name="За последние 30 дней", value=1),
-    app_commands.Choice(name="За все время", value=2),
+    app_commands.Choice(name="за последние 7 дней", value=0),
+    app_commands.Choice(name="за последние 30 дней", value=1),
+    app_commands.Choice(name="за все время", value=2),
 ])
-@AuthSlash.ADMIN
+@AuthSlash.ADMIN #TODO: потенциально не нужно.
 async def _provide_stats(interaction: discord.Interaction, time_span: app_commands.Choice[int]):
+    after = 0
+    match time_span.value:
+        case 0:
+            after = int(time() - 2177280000) 
+        case 1:
+            after = int(time() - 9331200000)
+        case 2:
+            after = None
+
+    diagramsCount, userCount,  _ = await asyncio.gather(
+        database.count_diagrams(after=after),
+        database.count_users(after),
+        utils.ensure_defer(interaction, ephemeral=True)
+    )
+    
+    pag = StatsPaginator(
+        _client, after, userCount, 10, 60,
+        f"{time_span.name} было создано диаграмм: {diagramsCount}\n\n"
+    )
+    await pag.display(interaction)
+
+
+
+
+#TODO: rename
+@_tree.command(name="del_other", description="удалить чужую диаграмму")
+@app_commands.describe(user="логин пользователя в Discord")
+@app_commands.describe(diagram="диаграмма, которую нужно удалить")
+#TODO: describe
+@lock_on_maintenance
+async def _delete_any_diagram(
+    interaction: discord.Interaction,
+    user: str,
+    diagram: str
+):
+    await delete_diagram(interaction, int(user), diagram)
     
 
+#TODO: delete/remove - определиться
 
+@_delete_any_diagram.autocomplete("user")
+async def _remove_other_user_autocomplete(
+    interaction: discord.Interaction, 
+    current: str, 
+) -> List[app_commands.Choice[str]]:
+    searchTerm, page = utils.split_term_page(current)
+    res = await database.search_users(page, 7, searchTerm)
+    return [app_commands.Choice(name=i[1], value=str(i[0])) for i in res]
 
+@_delete_any_diagram.autocomplete("diagram")
+async def _remove_other_diagram_autocomplete(
+    interaction: discord.Interaction, 
+    current: str, 
+) -> List[app_commands.Choice[str]]:
+    #TODO: reuse
+    searchTerm, page = utils.split_term_page(current)
+    userId = int(interaction.namespace.user)
+    diagrams = await database.get_diagrams_page(page, 7, userId, searchTerm)
+    return [app_commands.Choice(name=dia.name_with_time()[:100], value=dia.id) for dia in diagrams]
 
 ###### USER COMMANDS
 
@@ -110,7 +167,7 @@ async def _provide_stats(interaction: discord.Interaction, time_span: app_comman
 @AuthSlash.WHITELIST
 @lock_on_maintenance
 async def _new_diagram(interaction: discord.Interaction, title: str = ""):
-    await utils.defer_interaction(interaction, ephemeral=True)
+    await utils.ensure_defer(interaction, ephemeral=True)
 
     if len(title) == 0:
         title = "Untitled"
@@ -139,44 +196,17 @@ async def _new_diagram(interaction: discord.Interaction, title: str = ""):
 @lock_on_maintenance
 async def _delete_diagram(interaction: discord.Interaction, name: str):
     diagramId = name  # из автокомпплита вернется id 
-    print("got delete command!", interaction.id)
-
-    if not await database.user_have_diagram(interaction.user.id, diagramId):
-        await interaction.response.send_message(
-            Reactions.unauthorized + " Не похоже, что диаграмма с такой ссылкой была создана",  #TODO: не будет такого
-            ephemeral=True)
-        return 
-    
-    print("passed possesion check", interaction.id)
-    
-    await utils.defer_interaction(interaction, ephemeral=True)
-    try:
-        await cacoo.delete_diagram(diagramId)
-        print("called api", interaction.id)
-        await database.delete_diagram(diagramId)
-        print("removed from database", interaction.id)
-    except cacoo_api.CacooException as ex:
-        await interaction.followup.send(Reactions.negative + " " + ex.user_message, ephemeral=True)
-        return
-    except:
-        await interaction.followup.send(
-            Reactions.negative + " Произошла непредвиденная ошибка", 
-            ephemeral=True)
-        raise
-
-    await interaction.followup.send(Reactions.positive, ephemeral=True)
-    print("response sended", interaction.id)
-    print()
+    await delete_diagram(interaction, interaction.user.id, diagramId)
 
 
 @_delete_diagram.autocomplete("name")
-@utils.timeit
 async def _remove_inline_autocomplete(
     interaction: discord.Interaction, 
     current: str, 
     # namespace: app_commands.Namespace
 ) -> List[app_commands.Choice[str]]:
-    diagrams = await database.get_diagrams_page(0, 5, interaction.user.id, current)
+    searchTerm, page = utils.split_term_page(current)
+    diagrams = await database.get_diagrams_page(page, 7, interaction.user.id, searchTerm)
     return [app_commands.Choice(name=dia.name_with_time()[:100], value=dia.id) for dia in diagrams]
 
 
@@ -187,7 +217,7 @@ async def _list_diagrams(interaction: discord.Interaction, search: str = ""):
     if len(search) == 0:
         search = None
 
-    await utils.defer_interaction(interaction, ephemeral=True)
+    await utils.ensure_defer(interaction, ephemeral=True)
 
     pageSize = 10
     authorId = interaction.user.id 

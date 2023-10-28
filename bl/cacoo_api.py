@@ -1,8 +1,7 @@
 import aiohttp
-import asyncio
 import logging
-import utils
 from repository.repository import database 
+import keys
 
 class CacooException(Exception):
     def __init__(self, message, innerException = None) -> None:
@@ -123,5 +122,9 @@ class Cacoo:
             if resp.status != 200:
                 logging.error(f"diagram deletion failed with {resp.status}. {diagramId=}, {self._folderId=}, {self._organizationKey}")
                 raise CacooException("При обращении к Cacoo произошла непредвиденная ошибка")
+            
+
+cacoo = Cacoo(keys.get_cacoo_api_key())
+    
 
     # async def ():
