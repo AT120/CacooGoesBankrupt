@@ -1,17 +1,13 @@
 import asyncio
-from typing import Optional
-from discord.utils import MISSING
-from paginator.Paginator import Paginator
+from paginator.DeletionPaginator import DeletionPaginator
 import discord
 from repository.repository import database
 from utils import format_time, make_url_from_id, days_since
 from bl.shared_diagram_logic import delete_diagram
 
-
-class UnusedDiagramsPaginator(Paginator):
+class UnusedDiagramsPaginator(DeletionPaginator):
     _original_message: discord.InteractionMessage = None
     _client: discord.Client = None
-    _selector = discord.ui.Item()
     _diagrams_to_delete = []
     _userIds = {}
 
@@ -25,8 +21,14 @@ class UnusedDiagramsPaginator(Paginator):
     ):
         super().__init__(count, page_size, timeout, prefix)
         self._client = client
-        self.add_item(self._selector)
     
+
+    async def on_delete(self, values) -> bool:
+        results = await asyncio.gather(
+            *[delete_diagram(self._userIds[dia], dia) for dia in values]
+        )
+        return not (False in results)
+
 
     async def data_by_page(self, page):
         content = ""
@@ -45,7 +47,7 @@ class UnusedDiagramsPaginator(Paginator):
             user = self._client.get_user(dia.userId)
 
             selectOptions.append(discord.SelectOption(
-                label=f"{dia.diagramName}; дней с последнего обновления: {days_since(dia.updateTime)}",
+                label=f"{dia.diagramName}; дней с последнего обновления: {days_since(dia.updateTime)}"[:100],
                 value=dia.diagramId
             ))
             if user != None:
@@ -57,19 +59,7 @@ class UnusedDiagramsPaginator(Paginator):
                             f'диаграмма создана {dia.userName}; последнее обновление: {format_time(dia.updateTime)} ; ' \
                             f'примерно дней назад: {days_since(dia.updateTime)}\n'
                 
-        self._diagrams_to_delete = []
-        self.remove_item(self._selector)
-
-        self._selector = discord.ui.Select(
-            placeholder="Удаляем что-нибудь?",
-            min_values=0,
-            max_values=len(diagrams),
-            options=selectOptions
-        )
-        
-        self._selector.callback = self._delete_selector_callback
-        self.children[2].disabled = True
-        self.add_item(self._selector)
+        self.reload_selector_options(selectOptions)
         return content
     
 
@@ -89,32 +79,7 @@ class UnusedDiagramsPaginator(Paginator):
             else:
                 return f"более {weeks} недель", str(weeks) + "w"
             
-        return "менее 1 недели", "0w"
-
-    async def _delete_selector_callback(self, interaction: discord.Interaction, select: discord.ui.Select = None):
-        print(self.children[3].values)
-        if len(self.children[3].values) == 0:
-            self.children[2].disabled = True
-        else:
-            self.children[2].disabled = False
-
-        for option in self.children[3].options:
-            option.default = (option.value in self.children[3].values)
-
-        self._diagrams_to_delete = self.children[3].values
-        await interaction.response.edit_message(view=self)    
-
-
-    @discord.ui.button(emoji="\U0001f5d1", disabled=True, row=2, style=discord.ButtonStyle.danger)
-    async def _delete_button_callback(self, interaction: discord.Interaction, pressed: discord.ui.Button):
-        self.children[2].disabled = False
-        await interaction.response.edit_message(content="Удаляю...")
-        results = await asyncio.gather(
-            *[delete_diagram(interaction, self._userIds[dia], dia) for dia in self._diagrams_to_delete] #TODO: SPAM!
-        )
-        if False in results:
-            await interaction.followup.send()
-
+        return "менее 1 недели", "0w"  
             
 
 
