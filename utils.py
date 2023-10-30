@@ -2,6 +2,7 @@ import discord
 import logging
 import time
 from functools import wraps
+from math import ceil
 
 def extract_id_from_url(diagramUrl: str) -> str:
     urlParts = diagramUrl.split("/")
@@ -14,15 +15,6 @@ def make_url_from_id(diagramId: str) -> str:
     return f"https://cacoo.com/diagrams/{diagramId}"
 
 
-async def reload_whitelist(bot: discord.Client, database, whitelistServerId: int):
-    await database.reset_white_list()
-    guild = await bot.fetch_guild(whitelistServerId, with_counts=False)
-    async for member in guild.fetch_members(limit=None):
-        if (member.id != bot.user.id):
-            await database.add_user_to_whitelist(member.id, member.name)
-            
-    logging.info("Whitelist have been reloaded")
-
 async def ensure_defer(interaction: discord.Interaction, **kwargs):
     if not interaction.response.is_done():
         await interaction.response.defer(**kwargs)
@@ -33,6 +25,8 @@ def format_time(timestamp: int) -> str:
     return time.strftime("%d/%m/%y %H:%M", datetime)
 
 
+def days_since(timestamp: int) -> int:
+    return int((time.time() - timestamp) / 86400)
 
 
 def timeit(command):
@@ -40,7 +34,8 @@ def timeit(command):
     async def inner(*args, **kwargs):
         startTime = time.time()
         res = await command(*args, **kwargs)
-        logging.info(f"{args[0].id} - {(time.time()-startTime)*1000}ms")
+        # logging.info(f"{args[0].id} - {(time.time()-startTime)*1000}ms")
+        logging.info(f"{(time.time()-startTime)*1000}ms")
         return res
 
     return inner
@@ -58,4 +53,11 @@ def split_term_page(query: str):
     page -= 1
     page = 0 if page < 0 else page
     return term, page 
+
+
+def load_bar(progress: float) -> str:
+    LEN = 20
+    done = int(progress * LEN)
+    working = LEN - done
+    return "```/" + "#" * done + "-" * working + "/```"
 

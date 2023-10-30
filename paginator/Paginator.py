@@ -7,30 +7,32 @@ from maintenance import lock_on_maintenance
 #TODO: отрефакторить пагинаторы
 class Paginator(discord.ui.View):
     _current_page = 0
-    _data_by_page = None
     _count = 0
     _page_size = 0
     _last_page = 0
     _prefix = ""
 
 
-    def __init__(self, data_by_page, count: int, page_size: int = 5, timeout: float | None = 180, prefix: str = ""):
+    def __init__(self, count: int, page_size: int = 5, timeout: float | None = 180, prefix: str = ""):
         super().__init__(timeout=timeout)
         self._page_size = page_size
-        self._data_by_page = data_by_page
         self._count = count
         self._last_page = math.ceil(count / page_size) - 1
         self._prefix = prefix
         self._update_button_status()
 
+    async def data_by_page(self, page: int) -> str:
+        return ""
 
     async def render_page(self) -> str:
-        data = await self._data_by_page(self._current_page)
         content = self._prefix
-        for i in data:
-            content += f"- {i}\n"
-        
-        elementsShown = self._page_size * self._current_page + len(data) 
+        content += await self.data_by_page(self._current_page)
+
+        if self._current_page == self._last_page:
+            elementsShown = self._count 
+        else:
+            elementsShown = self._page_size * (self._current_page + 1)
+
         content += f"_{elementsShown}/{self._count}_"
         return content
 
@@ -41,7 +43,7 @@ class Paginator(discord.ui.View):
 
 
     @discord.ui.button(emoji="\u23EA")
-    @lock_on_maintenance
+    @lock_on_maintenance #TODO: а это точно работает?
     async def _prev_button_handler(self, interaction: discord.Interaction, pressed: discord.ui.Button):
         self._current_page -= 1
         self._update_button_status()

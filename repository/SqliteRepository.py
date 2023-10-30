@@ -46,7 +46,7 @@ class SqliteRepository(RepositoryBase):
                             "userId": userId, 
                             "diagramId": diagramId,
                             "diagramName": diagramName,
-                            "timestamp": int(time())
+                            "created": int(time())
                         })
         
     
@@ -70,7 +70,7 @@ class SqliteRepository(RepositoryBase):
             params.append(f"%{searchTerm}%")
 
         if after != None:
-            predicates.append("timestamp > ?")
+            predicates.append("created > ?")
             params.append(after)
 
         query += self.build_predicate(predicates)
@@ -88,7 +88,7 @@ class SqliteRepository(RepositoryBase):
         after: int | None = None
     ) -> Sequence[DiagramDTO]:
         params = []
-        query = "SELECT diagramId, diagramName, timestamp FROM UserDiagram " 
+        query = "SELECT diagramId, diagramName, created, updated FROM UserDiagram " 
                 
         predicates = []
         if userId != None:
@@ -96,7 +96,7 @@ class SqliteRepository(RepositoryBase):
             params.append(userId)
 
         if after != None:
-            predicates.append("timestamp > ?")
+            predicates.append("created > ?")
             params.append(after)
 
         if searchTerm != None:
@@ -104,13 +104,54 @@ class SqliteRepository(RepositoryBase):
             params.append(f"%{searchTerm}%")
         
         query += self.build_predicate(predicates)
-        query += " ORDER BY timestamp DESC" \
+        query += " ORDER BY created DESC" \
                  " LIMIT ? OFFSET ?"
         
         params.append(pageSize)
         params.append(page * pageSize)
         page = self.execute_fetch(query, params)
-        diagrams = [DiagramDTO(x[0], x[1], x[2]) for x in page]
+        diagrams = [DiagramDTO(x[0], x[1], x[2], x[3]) for x in page]
+        return diagrams
+    
+    
+    async def get_diagrams_page_with_users(
+        self, 
+        page: int, 
+        pageSize: int, 
+        orderByUpdated: bool = False,
+        userId: int | None = None,
+        searchTerm: str| None = None,
+        after: int | None = None,
+    ) -> Sequence[UserDiagramDTO]:
+        params = []
+        query = "SELECT diagramId, diagramName, created, updated, UserDiagram.userId, userName FROM UserDiagram " \
+                "JOIN Users on UserDiagram.userId = Users.userId "
+                
+        predicates = []
+        if userId != None:
+            predicates.append("UserDiagram.userId = ?")
+            params.append(userId)
+
+        if after != None:
+            predicates.append("created > ?")
+            params.append(after)
+
+        if searchTerm != None:
+            predicates.append("diagramName LIKE ?")
+            params.append(f"%{searchTerm}%")
+        
+        query += self.build_predicate(predicates)
+        if orderByUpdated:
+            query += " ORDER BY updated"
+        else:
+            query += " ORDER BY created DESC"
+
+        query += " LIMIT ? OFFSET ?"
+        
+        params.append(pageSize)
+        params.append(page * pageSize)
+        page = self.execute_fetch(query, params)
+        diagrams = [UserDiagramDTO(x[0], x[1], x[2], x[3], x[4], x[5]) for x in page]
         return diagrams
     
     
@@ -158,7 +199,6 @@ class SqliteRepository(RepositoryBase):
 
     async def remove_user_from_whitelist(self, userId: int):
         self.execute("UPDATE Users SET whitelisted = 0 WHERE userId = ? ", (userId, ))
-        # self.execute("DELETE FROM Whitelist WHERE userId = ? ", (userId, ))
     
 
     async def reset_white_list(self):
@@ -176,7 +216,7 @@ class SqliteRepository(RepositoryBase):
         
         params = []
         if after != None:
-            query += "WHERE timestamp > ? "
+            query += "WHERE created > ? "
             params.append(after)
 
         query += "GROUP BY UserDiagram.userId " \
@@ -192,12 +232,13 @@ class SqliteRepository(RepositoryBase):
         query = "SELECT COUNT(DISTINCT userId) FROM UserDiagram "
         params = []
         if (after != None):
-            query += "WHERE timestamp > ?"
+            query += "WHERE created > ?"
             params.append(after)
 
         res = self.execute_fetch(query, params)
         return res[0][0] 
     
+
     async def search_users(self, page: int, pageSize: int, searchTerm: str) -> Sequence[Tuple[int, str]]:
         query = "SELECT userId, userName FROM Users " \
                 "WHERE userName LIKE ? " \
@@ -205,5 +246,8 @@ class SqliteRepository(RepositoryBase):
         params = [f"%{searchTerm}%", pageSize, page*pageSize]
         return self.execute_fetch(query, params)
 
+
+    async def set_updatetime(self, diagramId: str, updatetime: int):
+        self.execute("UPDATE UserDiagram SET updated = ? WHERE diagramId = ?", (updatetime, diagramId))
 
 # RepositoryBase.register(SqliteRepository)

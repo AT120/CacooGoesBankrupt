@@ -2,6 +2,8 @@ import aiohttp
 import logging
 from repository.repository import database 
 import keys
+import utils
+import datetime
 
 class CacooException(Exception):
     def __init__(self, message, innerException = None) -> None:
@@ -116,13 +118,34 @@ class Cacoo:
         params |= self._defaultParams 
         async with self._session.get(url, params=params) as resp:
             if resp.status == 404:
-                raise CacooException("Не удалось найти диаграмму по предоставленной ссылке")
+                return # уже удалена, супер!  
             if resp.status == 403:
                 raise CacooException("Диаграмма либо была создана не через меня, либо редактируется в текущий момент")
             if resp.status != 200:
-                logging.error(f"diagram deletion failed with {resp.status}. {diagramId=}, {self._folderId=}, {self._organizationKey}")
+                logging.error(f"diagram deletion failed with {resp.status}. {diagramId=}, {self._folderId=}, {self._organizationKey=}")
+                raise CacooException("При обращении к Cacoo произошла непредвиденная ошибка")
+
+    @utils.timeit
+    async def diagram_last_use_time(self, diagramId: str) -> datetime.datetime:
+        url = self._url_to(f"diagrams/{diagramId}.json")
+        params = {"organizationKey": self._organizationKey}
+        params |= self._defaultParams 
+        async with self._session.get(url, params=params) as resp:
+            if resp.status == 404:
+                raise CacooException("Диаграмма не существует")
+            if resp.status != 200:
+                logging.error(f"diagram querying failed {resp.status}. {diagramId=}, {self._folderId=}, {self._organizationKey=}")
                 raise CacooException("При обращении к Cacoo произошла непредвиденная ошибка")
             
+            diagram = await resp.json(content_type=self._jsonMimetype)
+            
+            updateTime = datetime.datetime.strptime(diagram["updated"], "%a, %d %b %Y %H:%M:%S +0000")
+            if diagram["updated"] == diagram["created"]:
+                updateTime -= datetime.timedelta(hours=9)
+            
+            
+            return updateTime.replace(tzinfo=datetime.timezone.utc)
+        
 
 cacoo = Cacoo(keys.get_cacoo_api_key())
     

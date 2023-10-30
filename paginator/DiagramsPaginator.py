@@ -5,13 +5,21 @@ import discord
 
 class DiagramsPaginator(Paginator):
     _original_message: discord.InteractionMessage = None
+    _user_id = 0
+    _search_term = ""
 
     def __init__(self, userId: int, searchTerm: str | None, count: int, page_size: int = 5, timeout: float | None = 180):
-        async def load_data(page):
-            diagrams = await database.get_diagrams_page(page, page_size, userId, searchTerm)
-            return [f"[{dia.name}]({utils.make_url_from_id(dia.id)})" for dia in diagrams]
-        
-        super().__init__(load_data, count, page_size, timeout)
+        self._user_id = userId
+        self._search_term = searchTerm
+        super().__init__(count, page_size, timeout)
+    
+    async def data_by_page(self, page: int) -> str:
+        #TODO: какое-нибудь сообщение при 0
+        diagrams = await database.get_diagrams_page(page, self._page_size, self._user_id , self._search_term)
+        content = ""
+        for dia in diagrams:
+            content += f"- [{dia.name}]({utils.make_url_from_id(dia.id)})\n" 
+        return content
 
     async def display(self, interaction: discord.Interaction, **kwargs):
         content = await self.render_page()

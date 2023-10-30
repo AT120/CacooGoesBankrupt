@@ -9,9 +9,19 @@ class DiagramDTO:
     id: str
     name: str
     creationTime: int
+    updateTime: int | None = None
 
     def name_with_time(self) -> str:
         return f'"{self.name}" от {format_time(self.creationTime)}'
+
+@dataclass
+class UserDiagramDTO:
+    diagramId: str
+    diagramName: str
+    creationTime: int
+    updateTime: int | None
+    userId: int
+    userName: int
 
 @dataclass
 class UserDiagramsCount:
@@ -43,6 +53,19 @@ class RepositoryBase(ABC):
         after: int | None = None
     ) -> Sequence[DiagramDTO]:
         pass
+
+    @abstractmethod
+    async def get_diagrams_page_with_users(
+        self, 
+        page: int, 
+        pageSize: int, 
+        orderByUpdated: bool = False,
+        userId: int | None = None,
+        searchTerm: str| None = None,
+        after: int | None = None
+    ) -> Sequence[UserDiagramDTO]:
+        pass
+        
 
     @abstractmethod
     async def user_have_diagram(self, userId: int, diagramId: str) -> bool:
@@ -91,4 +114,8 @@ class RepositoryBase(ABC):
 
     @abstractmethod
     async def search_users(self, page: int, pageSize: int, searchTerm: str) -> Sequence[Tuple[int, str]]:
+        pass
+
+    @abstractmethod
+    async def set_updatetime(self, diagramId: str, updatetime: int):
         pass

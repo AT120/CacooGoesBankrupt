@@ -3,7 +3,7 @@ from discord.ext import commands
 from discord import app_commands
 from typing import List
 from bl.cacoo_api import cacoo
-from bl.shared_diagram_service import *
+from bl.shared_diagram_logic import *
 import bl.cacoo_api as cacoo_api
 import keys
 import logging
@@ -12,6 +12,7 @@ import asyncio
 import utils
 from paginator.DiagramsPaginator import DiagramsPaginator
 from paginator.StatsPaginator import StatsPaginator
+from paginator.UnusedDiagramsPaginator import UnusedDiagramsPaginator
 from auth import *
 from consts import Reactions
 from maintenance import lock_on_maintenance, performing_maintenance
@@ -24,7 +25,8 @@ _intents.members = True
 # _intents.message_content = True
 _client = commands.Bot(command_prefix=commands.when_mentioned, intents=_intents)
 _tree = _client.tree
-_whitelistServer = 1166037428906229840 #TODO: in config
+# _whitelistServer = 1166037428906229840 #TODO: in config
+_whitelistServer = 1164458024522493972 #testserver
 
 
 ##### events
@@ -32,7 +34,7 @@ _whitelistServer = 1166037428906229840 #TODO: in config
 @_client.event
 async def on_ready():
     print(f"logged in as {_client.user}")
-    await utils.reload_whitelist(_client, database, _whitelistServer)
+    await reload_whitelist(_client, database, _whitelistServer)
 
 
 @_client.event
@@ -48,11 +50,20 @@ async def on_member_remove(member: discord.Member):
 
 ##### ADMIN COMMANDS
 
+@_client.command("get_guilds")
+@AuthCommand.ADMIN
+async def _get_guilds(ctx: commands.Context):
+    msg = ""
+    for guild in _client.guilds:
+        msg += f"{guild.id}/{guild.name}\n"
+
+    await ctx.author.send(msg)
+
 @_client.command("reload_whitelist")
 @AuthCommand.ADMIN
 @performing_maintenance
 async def _reload_whitelist(ctx: commands.Context):
-    await utils.reload_whitelist(_client, database, _whitelistServer) #TODO: try catch
+    await reload_whitelist(_client, database, _whitelistServer) #TODO: try catch
     await ctx.message.add_reaction(Reactions.positive)
 
 @_client.command("test")
@@ -83,13 +94,14 @@ async def _reset_cacoo_cache(ctx: commands.Context):
 
 
 @_tree.command(name="stats", description="статистика использования бота")
+@app_commands.guild_only()
 @app_commands.describe(time_span="временной промежуток для показа статистики")
 @app_commands.choices(time_span=[
     app_commands.Choice(name="за последние 7 дней", value=0),
     app_commands.Choice(name="за последние 30 дней", value=1),
     app_commands.Choice(name="за все время", value=2),
 ])
-@AuthSlash.ADMIN #TODO: потенциально не нужно.
+# @AuthSlash.ADMIN #TODO: потенциально не нужно.
 async def _provide_stats(interaction: discord.Interaction, time_span: app_commands.Choice[int]):
     after = 0
     match time_span.value:
@@ -100,7 +112,7 @@ async def _provide_stats(interaction: discord.Interaction, time_span: app_comman
         case 2:
             after = None
 
-    diagramsCount, userCount,  _ = await asyncio.gather(
+    diagramsCount, userCount, _ = await asyncio.gather(
         database.count_diagrams(after=after),
         database.count_users(after),
         utils.ensure_defer(interaction, ephemeral=True)
@@ -111,6 +123,27 @@ async def _provide_stats(interaction: discord.Interaction, time_span: app_comman
         f"{time_span.name} было создано диаграмм: {diagramsCount}\n\n"
     )
     await pag.display(interaction)
+
+
+@_tree.command(name="unused", description="неиспользуемые диаграммы")
+@lock_on_maintenance #TODO: чинить
+async def _unused_diagrams(interaction: discord.Interaction):
+    msg = "Загружаю информацию о использовании с Cacoo... "
+    await interaction.response.send_message(msg + utils.load_bar(0), ephemeral=True)
+    #TODO: enable
+    # async for progress in reload_last_updated_time():
+    #     await interaction.edit_original_response(content=msg + utils.load_bar(progress))
+
+    await utils.ensure_defer(interaction)
+    count = await database.count_diagrams()
+    pag = UnusedDiagramsPaginator(_client, count)
+    await pag.display(interaction)
+
+
+@_tree.context_menu(name="удалить диаграмму")
+async def _context_menu_deletion(interaction: discord.Interaction, message: discord.Message):
+    await interaction.response.send_message("Cool!", ephemeral=True)
+    await message.add_reaction(Reactions.positive)
 
 
 
@@ -126,7 +159,7 @@ async def _delete_any_diagram(
     user: str,
     diagram: str
 ):
-    await delete_diagram(interaction, int(user), diagram)
+    await delete_diagram_interactive(interaction, int(user), diagram)
     
 
 #TODO: delete/remove - определиться
@@ -136,7 +169,7 @@ async def _remove_other_user_autocomplete(
     interaction: discord.Interaction, 
     current: str, 
 ) -> List[app_commands.Choice[str]]:
-    searchTerm, page = utils.split_term_page(current)
+    searchTerm, page = utils.split_term_page(current) #TODO: написать пояснения про пагинацию
     res = await database.search_users(page, 7, searchTerm)
     return [app_commands.Choice(name=i[1], value=str(i[0])) for i in res]
 
@@ -196,7 +229,7 @@ async def _new_diagram(interaction: discord.Interaction, title: str = ""):
 @lock_on_maintenance
 async def _delete_diagram(interaction: discord.Interaction, name: str):
     diagramId = name  # из автокомпплита вернется id 
-    await delete_diagram(interaction, interaction.user.id, diagramId)
+    await delete_diagram_interactive(interaction, interaction.user.id, diagramId)
 
 
 @_delete_diagram.autocomplete("name")

@@ -4,7 +4,9 @@ from repository.repository import database
 
 class StatsPaginator(Paginator):
     _original_message: discord.InteractionMessage = None
-
+    _client: discord.Client = None
+    _after = 0
+    
     def __init__(
         self,
         client: discord.Client,
@@ -14,18 +16,23 @@ class StatsPaginator(Paginator):
         timeout: float | None = 180,
         prefix: str = "", 
     ):
-        async def data_by_page(page):
-            user_diagrams_count = await database.user_diagrams_count(page, page_size, after)
-            content = []
-            for dia in user_diagrams_count:
-                user = client.get_user(dia.userId) # TODO: mentions
-                if user != None:
-                    content.append(f"@{user.name} {dia.userName} создал диаграмм: {dia.diagramsCount}") #TODO: проверить, пингует ли user.mention пользователя
-                else:
-                    content.append(f"{dia.userName} создал диаграмм: {dia.diagramsCount}") #TODO: проверить, пингует ли user.mention пользователя
-            return content
-        
-        super().__init__(data_by_page, count, page_size, timeout, prefix)
+        self._after = after
+        self._client = client
+        super().__init__(count, page_size, timeout, prefix)
+
+
+    async def data_by_page(self, page):
+        user_diagrams_count = await database.user_diagrams_count(page, self._page_size, self._after)
+        content = ""
+        for dia in user_diagrams_count:
+            #TODO: не показывать челов с 0 диаграмм
+            user = self._client.get_user(dia.userId)
+            if user != None:
+                content += f"- {user.mention} ({dia.userName}) создал диаграмм: {dia.diagramsCount}\n" 
+            else:
+                content += f"- {dia.userName} создал диаграмм: {dia.diagramsCount}\n"
+        return content
+
 
     async def display(self, interaction: discord.Interaction):
         content = await self.render_page()
