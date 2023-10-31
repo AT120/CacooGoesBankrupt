@@ -1,15 +1,11 @@
 import discord
+import logging, asyncio, utils
 from discord.ext import commands
 from discord import app_commands
 from typing import List
-from bl.cacoo_api import cacoo
+from bl.cacoo_api import cacoo, CacooException
 from bl.shared_diagram_logic import *
-import bl.cacoo_api as cacoo_api
-import keys
-import logging
 from repository.repository import database
-import asyncio
-import utils
 from paginator.DiagramsPaginator import DiagramsPaginator
 from paginator.StatsPaginator import StatsPaginator
 from paginator.UnusedDiagramsPaginator import UnusedDiagramsPaginator
@@ -17,6 +13,7 @@ from auth import *
 from consts import Reactions
 from maintenance import lock_on_maintenance, performing_maintenance
 from time import time
+from config import config
 
 logging.basicConfig(level=logging.INFO)
 
@@ -24,8 +21,9 @@ _intents = discord.Intents.default()
 _intents.members = True
 _client = commands.Bot(command_prefix=commands.when_mentioned, intents=_intents)
 _tree = _client.tree
-_whitelistServer = 1166037428906229840 #TODO: in config
+# _whitelistServer = 1166037428906229840
 # _whitelistServer = 1164458024522493972 #testserver
+_whitelistServer = config.get("whitelist-server-id")
 
 
 ##### events
@@ -45,6 +43,7 @@ async def on_member_join(member: discord.Member):
 async def on_member_remove(member: discord.Member):
     await database.remove_user_from_whitelist(member.id)
     logging.info(f"user {member.name}/{member.id} was removed from the whitelist")
+
 
 
 ##### ADMIN COMMANDS
@@ -86,7 +85,10 @@ async def _reset_cacoo_cache(ctx: commands.Context):
     await ctx.message.add_reaction(Reactions.positive)
 
 
-@_tree.command(name="stats", description="статистика использования бота")
+
+##### ADMIN SLAHSES
+
+@_tree.command(name="userstats", description="статистика использования бота")
 @app_commands.guild_only()
 @app_commands.describe(time_span="временной промежуток для показа статистики")
 @app_commands.choices(time_span=[
@@ -116,10 +118,10 @@ async def _provide_stats(interaction: discord.Interaction, time_span: app_comman
     )
     await pag.display(interaction)
 
-#TODO: залочить методы на guild_only
 
-@_tree.command(name="unused", description="неиспользуемые диаграммы")
-@lock_on_maintenance #TODO: чинить
+@_tree.command(name="unusedstats", description="неиспользуемые диаграммы")
+@app_commands.guild_only()
+@lock_on_maintenance
 async def _unused_diagrams(interaction: discord.Interaction):
     msg = "Загружаю информацию о использовании с Cacoo... "
     await interaction.response.send_message(msg + utils.load_bar(0), ephemeral=True)
@@ -133,17 +135,10 @@ async def _unused_diagrams(interaction: discord.Interaction):
     await pag.display(interaction)
 
 
-@_tree.context_menu(name="удалить диаграмму")
-async def _context_menu_deletion(interaction: discord.Interaction, message: discord.Message):
-    await interaction.response.send_message("Cool!", ephemeral=True)
-    await message.add_reaction(Reactions.positive)
-
-
-
-
 #TODO: rename
-@_tree.command(name="del_other", description="удалить чужую диаграмму")
-@app_commands.describe(user="логин пользователя в Discord")
+@_tree.command(name="admindel", description="удалить чужую диаграмму")
+@app_commands.guild_only()
+@app_commands.describe(user='логин пользователя в Discord (добавьте "/2" в конце запроса, чтобы посмотреть другие варианты)')
 @app_commands.describe(diagram="диаграмма, которую нужно удалить")
 @lock_on_maintenance
 async def _delete_any_diagram(
@@ -152,7 +147,6 @@ async def _delete_any_diagram(
     diagram: str
 ):
     await delete_diagram_interactive(interaction, int(user), diagram)
-
 
 @_delete_any_diagram.autocomplete("user")
 async def _delete_other_user_autocomplete(
@@ -174,12 +168,12 @@ async def _delete_other_diagram_autocomplete(
     return [app_commands.Choice(name=dia.name_with_time()[:100], value=dia.id) for dia in diagrams]
 
 
-@_tree.command(name="dia_other", description="Посмотреть список диаграмм других пользователей")
+@_tree.command(name="admindia", description="Посмотреть список диаграмм других пользователей")
+@app_commands.guild_only()
 @app_commands.describe(user="пользователь, чьи диаграммы посмотреть")
 async def _dia_other(interaction: discord.Interaction, user: str):
     userId = int(user)
     await list_diagrams(interaction, userId)
-
 
 @_dia_other.autocomplete("user")
 async def _dia_other_user_autocomplete(
@@ -190,8 +184,9 @@ async def _dia_other_user_autocomplete(
     res = await database.search_users(page, 7, searchTerm)
     return [app_commands.Choice(name=i[1], value=str(i[0])) for i in res]
 
-###### USER COMMANDS
 
+
+###### USER COMMANDS
 
 @_tree.command(name="new", description="создать новую диаграмму")
 @app_commands.describe(title="название диаграммы")
@@ -206,7 +201,7 @@ async def _new_diagram(interaction: discord.Interaction, title: str = ""):
         diagramUrl = await cacoo.create_diagram(title)
         diagramId = utils.extract_id_from_url(diagramUrl)
         await database.store_new_diagram(interaction.user.id, diagramId, title)
-    except cacoo_api.CacooException as ex:
+    except CacooException as ex:
         await interaction.followup.send(Reactions.negative + " " + ex.user_message, ephemeral=True)
         return
     except:
@@ -250,7 +245,7 @@ async def _list_diagrams(interaction: discord.Interaction, search: str = ""):
 
 
 
-_discordApp = _client.start(keys.get_discord_token())
+_discordApp = _client.start(config.get("discord-token"))
 async def startup(app):
     await _discordApp
 

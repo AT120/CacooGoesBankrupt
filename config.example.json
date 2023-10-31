@@ -3,5 +3,6 @@
     "discord-token": "",
     "database-file": "database.db",
     "cacoo-folder-name": "diagrams",
-    "admin-discord-id": 477114347496407040
+    "admin-discord-id": 477114347496407040,
+    "whitelist-server-id": 1166037428906229840
 }

@@ -14,11 +14,6 @@ def lock_on_maintenance(command):
     @wraps(command)
     async def inner(*args, **kwargs):
         global REQUESTS_IN_PROCESS
-        if MAINTENANCE_BEING_PERFORMED:
-            try:
-                await args[0].response.defer(ephemeral=True)
-            except:
-                pass
 
         await MAINTENANCE_LOCK.acquire()
         REQUESTS_IN_PROCESS += 1

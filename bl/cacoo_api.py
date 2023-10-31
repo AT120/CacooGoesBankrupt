@@ -1,7 +1,6 @@
 import aiohttp
 import logging
 from repository.repository import database 
-import keys
 import utils
 import datetime
 from config import config
@@ -148,7 +147,7 @@ class Cacoo:
             return updateTime.replace(tzinfo=datetime.timezone.utc)
         
 
-cacoo = Cacoo(keys.get_cacoo_api_key())
+cacoo = Cacoo(config.get("cacoo-api-key"))
     
 
     # async def ():

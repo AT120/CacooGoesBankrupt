@@ -50,7 +50,7 @@ async def reload_last_updated_time():
     diagramsProcessed = 0
     page = 0
     while diagramsProcessed < diagramCount:
-        diagrams = await database.get_diagrams_page(page, 10) #TODO: установить нормальный
+        diagrams = await database.get_diagrams_page(page, 10)
         new_times = await asyncio.gather(
             *[cacoo.diagram_last_use_time(dia.id) for dia in diagrams]
         )
