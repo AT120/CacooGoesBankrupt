@@ -3,6 +3,9 @@ import logging
 import time
 from functools import wraps
 from math import ceil
+from pathlib import Path
+from sys import argv
+
 
 def extract_id_from_url(diagramUrl: str) -> str:
     urlParts = diagramUrl.split("/")
@@ -61,3 +64,5 @@ def load_bar(progress: float) -> str:
     working = LEN - done
     return "```/" + "#" * done + "-" * working + "/```"
 
+def get_application_dir() -> Path:
+    return Path.cwd().joinpath(argv[0]).parent

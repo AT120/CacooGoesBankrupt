@@ -123,9 +123,9 @@ async def _provide_stats(interaction: discord.Interaction, time_span: app_comman
 async def _unused_diagrams(interaction: discord.Interaction):
     msg = "Загружаю информацию о использовании с Cacoo... "
     await interaction.response.send_message(msg + utils.load_bar(0), ephemeral=True)
-    #TODO: enable
-    # async for progress in reload_last_updated_time():
-    #     await interaction.edit_original_response(content=msg + utils.load_bar(progress))
+
+    async for progress in reload_last_updated_time():
+        await interaction.edit_original_response(content=msg + utils.load_bar(progress))
 
     await utils.ensure_defer(interaction)
     count = await database.count_diagrams()
@@ -152,7 +152,6 @@ async def _delete_any_diagram(
     diagram: str
 ):
     await delete_diagram_interactive(interaction, int(user), diagram)
-    
 
 
 @_delete_any_diagram.autocomplete("user")

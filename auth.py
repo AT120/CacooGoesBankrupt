@@ -3,11 +3,14 @@ import discord
 from repository.repository import database
 from consts import Reactions
 from functools import wraps
+from config import config
 
+
+_admin_id = config.get("admin-discord-id")
 class AuthCommand:
     def ADMIN(command):
         async def inner(ctx: commands.Context, *args):
-            if ctx.author.id != 477114347496407040: #TODO: in config
+            if ctx.author.id != _admin_id:
                 await ctx.message.add_reaction(Reactions.unauthorized)
                 return 
             
@@ -29,7 +32,7 @@ class AuthSlash:
     def ADMIN(command):
         @wraps(command)
         async def inner(interaction: discord.Interaction, *args, **kwargs):
-            if interaction.user.id != 477114347496407040: #TODO: in config
+            if interaction.user.id != _admin_id:
                 await interaction.response.send_message(Reactions.unauthorized) #TODO: модалку с ошибкой. FAIL. Это не работатет
                 return 
             

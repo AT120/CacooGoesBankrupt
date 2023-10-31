@@ -4,7 +4,6 @@ import math
 from collections.abc import Awaitable
 from maintenance import lock_on_maintenance
 
-#TODO: отрефакторить пагинаторы
 class Paginator(discord.ui.View):
     _current_page = 0
     _count = 0

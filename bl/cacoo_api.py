@@ -4,6 +4,7 @@ from repository.repository import database
 import keys
 import utils
 import datetime
+from config import config
 
 class CacooException(Exception):
     def __init__(self, message, innerException = None) -> None:
@@ -44,7 +45,7 @@ class Cacoo:
 
     async def _load_defaults_from_cacoo(self):
         await self._load_organization_key()
-        await self._load_default_folder_id("diagrams") #TODO: in config
+        await self._load_default_folder_id(config.get("cacoo-folder-name")) #TODO: in config
         await database.cache_cacoo_data(self._organizationKey, int(self._folderId))
 
 
@@ -80,7 +81,7 @@ class Cacoo:
             folders = folders["result"]
             folder = next((fld for fld in folders if fld["folderName"] == name), None)
             if (folder == None):
-                raise ValueError(f"folder with name {name} was not found!") #TODO:
+                raise CacooException(f"folder with name {name} was not found!")
             self._folderId = folder["folderId"]
             
             logging.info("default folder id have been succesfully laoded")
