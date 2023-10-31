@@ -6,6 +6,7 @@ from bl.cacoo_api import CacooException, cacoo
 import logging
 import asyncio
 from calendar import timegm
+from paginator.DiagramsPaginator import DiagramsPaginator
 
 async def delete_diagram_interactive(
     interaction: discord.Interaction,
@@ -32,18 +33,6 @@ async def delete_diagram_interactive(
         raise
 
     await interaction.followup.send(Reactions.positive, ephemeral=True)
-
-async def delete_diagram(userId: int, diagramId: str) -> bool:
-    if not await database.user_have_diagram(userId, diagramId):
-        return False
-    
-    try:
-        await cacoo.delete_diagram(diagramId)
-        await database.delete_diagram(userId, diagramId)
-    except:
-        return False
-    
-    return True
 
 
 async def reload_whitelist(bot: discord.Client, database, whitelistServerId: int):
@@ -76,3 +65,14 @@ async def reload_last_updated_time():
         page += 1
         diagramsProcessed += len(diagrams)
         yield diagramsProcessed / diagramCount
+
+async def list_diagrams(interaction: discord.Interaction, userId: int, search = ""):
+    if len(search) == 0:
+        search = None
+
+    await utils.ensure_defer(interaction, ephemeral=True)
+
+    pageSize = 10
+    diagramsCount = await database.count_diagrams(userId, search)
+    pag = DiagramsPaginator(userId, search, diagramsCount, pageSize, 60)
+    await pag.display(interaction, suppress_embeds=True, ephemeral=True)

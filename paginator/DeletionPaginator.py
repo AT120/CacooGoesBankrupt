@@ -1,16 +1,14 @@
 import asyncio
 from paginator.Paginator import Paginator
 import discord
-from repository.repository import database
-from bl.shared_diagram_logic import delete_diagram
 from consts import Reactions
-
-
+import math
+import utils
 class DeletionPaginator(Paginator):
     _original_message: discord.InteractionMessage = None
     _selectorInd = None
     _confirmationButtonInd = 0
-    _diagrams_to_delete = []
+    _values_to_delete = []
 
     def __init__(
         self,
@@ -26,7 +24,7 @@ class DeletionPaginator(Paginator):
         # self._children.append(None)
 
     
-    async def on_delete(self, values) -> bool:
+    async def on_delete(self, values) -> int:
         pass
 
     def reload_selector_options(self, newOptions):
@@ -56,18 +54,32 @@ class DeletionPaginator(Paginator):
         for option in selector.options:
             option.default = (option.value in selector.values)
 
-        self._diagrams_to_delete = selector.values
+        self._values_to_delete = selector.values
         await interaction.response.edit_message(view=self)    
 
 
     @discord.ui.button(emoji="\U0001f5d1", disabled=True, row=2, style=discord.ButtonStyle.danger)
     async def _delete_button_callback(self, interaction: discord.Interaction, pressed: discord.ui.Button):
-        await interaction.response.edit_message(content="Удаляю...")
 
-        if await self.on_delete(self._diagrams_to_delete):
-            await interaction.followup.send(Reactions.positive + "Успешно удалено", ephemeral=True)
+        self._children[self._confirmationButtonInd].disabled = True
+        await interaction.response.edit_message(content="Удаляю...", view=self)
+
+        deleted = await self.on_delete(self._values_to_delete)
+        should_be_deleted = len(self._values_to_delete)
+        self._values_to_delete = []
+
+        self._count -= deleted
+        self._last_page = math.ceil(self._count / self._page_size) - 1
+        self._current_page = 0
+        self._update_button_status()
+        
+        newContent = await self.render_page()
+        await interaction.edit_original_response(content=newContent, view=self)        
+
+        if deleted == should_be_deleted:
+            await interaction.followup.send(Reactions.positive + " Успешно удалено", ephemeral=True)
         else:
-            await interaction.followup.send(Reactions.negative + "При удалении некоторых диаграмм произошла ошибка", ephemeral=True)
+            await interaction.followup.send(Reactions.negative + " При удалении некоторых диаграмм произошла ошибка", ephemeral=True)
 
             
 

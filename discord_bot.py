@@ -22,11 +22,10 @@ logging.basicConfig(level=logging.INFO)
 
 _intents = discord.Intents.default()
 _intents.members = True
-# _intents.message_content = True
 _client = commands.Bot(command_prefix=commands.when_mentioned, intents=_intents)
 _tree = _client.tree
-# _whitelistServer = 1166037428906229840 #TODO: in config
-_whitelistServer = 1164458024522493972 #testserver
+_whitelistServer = 1166037428906229840 #TODO: in config
+# _whitelistServer = 1164458024522493972 #testserver
 
 
 ##### events
@@ -66,12 +65,6 @@ async def _reload_whitelist(ctx: commands.Context):
     await reload_whitelist(_client, database, _whitelistServer) #TODO: try catch
     await ctx.message.add_reaction(Reactions.positive)
 
-@_client.command("test")
-@AuthCommand.ADMIN
-@performing_maintenance
-async def _test_smth(ctx: commands.Context):
-    await asyncio.sleep(10)
-
 
 @_client.command("sync_commands") # TODO: hide in help
 @AuthCommand.ADMIN
@@ -101,7 +94,6 @@ async def _reset_cacoo_cache(ctx: commands.Context):
     app_commands.Choice(name="за последние 30 дней", value=1),
     app_commands.Choice(name="за все время", value=2),
 ])
-# @AuthSlash.ADMIN #TODO: потенциально не нужно.
 async def _provide_stats(interaction: discord.Interaction, time_span: app_commands.Choice[int]):
     after = 0
     match time_span.value:
@@ -124,6 +116,7 @@ async def _provide_stats(interaction: discord.Interaction, time_span: app_comman
     )
     await pag.display(interaction)
 
+#TODO: залочить методы на guild_only
 
 @_tree.command(name="unused", description="неиспользуемые диаграммы")
 @lock_on_maintenance #TODO: чинить
@@ -152,7 +145,6 @@ async def _context_menu_deletion(interaction: discord.Interaction, message: disc
 @_tree.command(name="del_other", description="удалить чужую диаграмму")
 @app_commands.describe(user="логин пользователя в Discord")
 @app_commands.describe(diagram="диаграмма, которую нужно удалить")
-#TODO: describe
 @lock_on_maintenance
 async def _delete_any_diagram(
     interaction: discord.Interaction,
@@ -162,10 +154,9 @@ async def _delete_any_diagram(
     await delete_diagram_interactive(interaction, int(user), diagram)
     
 
-#TODO: delete/remove - определиться
 
 @_delete_any_diagram.autocomplete("user")
-async def _remove_other_user_autocomplete(
+async def _delete_other_user_autocomplete(
     interaction: discord.Interaction, 
     current: str, 
 ) -> List[app_commands.Choice[str]]:
@@ -174,25 +165,33 @@ async def _remove_other_user_autocomplete(
     return [app_commands.Choice(name=i[1], value=str(i[0])) for i in res]
 
 @_delete_any_diagram.autocomplete("diagram")
-async def _remove_other_diagram_autocomplete(
+async def _delete_other_diagram_autocomplete(
     interaction: discord.Interaction, 
     current: str, 
 ) -> List[app_commands.Choice[str]]:
-    #TODO: reuse
     searchTerm, page = utils.split_term_page(current)
     userId = int(interaction.namespace.user)
     diagrams = await database.get_diagrams_page(page, 7, userId, searchTerm)
     return [app_commands.Choice(name=dia.name_with_time()[:100], value=dia.id) for dia in diagrams]
 
+
+@_tree.command(name="dia_other", description="Посмотреть список диаграмм других пользователей")
+@app_commands.describe(user="пользователь, чьи диаграммы посмотреть")
+async def _dia_other(interaction: discord.Interaction, user: str):
+    userId = int(user)
+    await list_diagrams(interaction, userId)
+
+
+@_dia_other.autocomplete("user")
+async def _dia_other_user_autocomplete(
+    interaction: discord.Interaction, 
+    current: str, 
+) -> List[app_commands.Choice[str]]:
+    searchTerm, page = utils.split_term_page(current) #TODO: написать пояснения про пагинацию
+    res = await database.search_users(page, 7, searchTerm)
+    return [app_commands.Choice(name=i[1], value=str(i[0])) for i in res]
+
 ###### USER COMMANDS
-
-# @_tree.command(name="test_maintanence_lock")
-# @lock_on_maintenance
-# async def _test_lock(interaction: discord.Interaction):
-#     await utils.defer_interaction(interaction)
-#     await asyncio.sleep(5)
-#     await interaction.followup.send(Reactions.working)
-
 
 
 @_tree.command(name="new", description="создать новую диаграмму")
@@ -233,7 +232,7 @@ async def _delete_diagram(interaction: discord.Interaction, name: str):
 
 
 @_delete_diagram.autocomplete("name")
-async def _remove_inline_autocomplete(
+async def _delete_inline_autocomplete(
     interaction: discord.Interaction, 
     current: str, 
     # namespace: app_commands.Namespace
@@ -247,16 +246,7 @@ async def _remove_inline_autocomplete(
 @app_commands.describe(search="Поиск диаграмм по имени")
 @lock_on_maintenance
 async def _list_diagrams(interaction: discord.Interaction, search: str = ""):
-    if len(search) == 0:
-        search = None
-
-    await utils.ensure_defer(interaction, ephemeral=True)
-
-    pageSize = 10
-    authorId = interaction.user.id 
-    diagramsCount = await database.count_diagrams(authorId, search)
-    pag = DiagramsPaginator(authorId, search, diagramsCount, pageSize, 30)
-    await pag.display(interaction, suppress_embeds=True, ephemeral=True)
+    await list_diagrams(interaction, interaction.user.id, search)
 
 
 

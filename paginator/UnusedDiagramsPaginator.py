@@ -3,7 +3,7 @@ from paginator.DeletionPaginator import DeletionPaginator
 import discord
 from repository.repository import database
 from utils import format_time, make_url_from_id, days_since
-from bl.shared_diagram_logic import delete_diagram
+from bl.non_interactive_logic import delete_diagram
 
 class UnusedDiagramsPaginator(DeletionPaginator):
     _original_message: discord.InteractionMessage = None
@@ -27,7 +27,7 @@ class UnusedDiagramsPaginator(DeletionPaginator):
         results = await asyncio.gather(
             *[delete_diagram(self._userIds[dia], dia) for dia in values]
         )
-        return not (False in results)
+        return sum(results)
 
 
     async def data_by_page(self, page):
