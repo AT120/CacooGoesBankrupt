@@ -2,7 +2,7 @@ from typing import Optional
 import discord
 import math
 from collections.abc import Awaitable
-from maintenance import lock_on_maintenance
+from decorators.maintenance import lock_on_maintenance
 
 class Paginator(discord.ui.View):
     _current_page = 0
@@ -16,7 +16,11 @@ class Paginator(discord.ui.View):
         super().__init__(timeout=timeout)
         self._page_size = page_size
         self._count = count
-        self._last_page = math.ceil(count / page_size) - 1
+        if count == 0:
+            self._last_page = 0
+        else:
+            self._last_page = math.ceil(count / page_size) - 1
+
         self._prefix = prefix
         self._update_button_status()
 

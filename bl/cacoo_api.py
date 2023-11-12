@@ -83,9 +83,9 @@ class Cacoo:
                 raise CacooException(f"folder with name {name} was not found!")
             self._folderId = folder["folderId"]
             
-            logging.info("default folder id have been succesfully laoded")
+            logging.info("default folder id have been succesfully loaded")
 
-
+    @utils.timeit
     async def create_diagram(self, diagramName) -> str:
         url = self._url_to("diagrams/create.json")
         params = {
@@ -110,7 +110,7 @@ class Cacoo:
             diagram = await resp.json(content_type=self._jsonMimetype)
             return diagram["url"]
 
-
+    @utils.timeit
     async def delete_diagram(self, diagramId):
         # diagramId = utils.extract_id_from_url(diagramUrl)
         url = self._url_to(f"diagrams/{diagramId}/delete.json")
@@ -125,7 +125,7 @@ class Cacoo:
                 logging.error(f"diagram deletion failed with {resp.status}. {diagramId=}, {self._folderId=}, {self._organizationKey=}")
                 raise CacooException("При обращении к Cacoo произошла непредвиденная ошибка")
 
-    @utils.timeit
+
     async def diagram_last_use_time(self, diagramId: str) -> datetime.datetime:
         url = self._url_to(f"diagrams/{diagramId}.json")
         params = {"organizationKey": self._organizationKey}
@@ -150,4 +150,3 @@ class Cacoo:
 cacoo = Cacoo(config.get("cacoo-api-key"))
     
 
-    # async def ():

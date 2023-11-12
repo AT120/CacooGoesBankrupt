@@ -6,13 +6,33 @@ from typing import Sequence
 
 class SqliteRepository(RepositoryBase):
     _db: SQLite4
-    def init(self, *params):
+    def init_connection(self, *params):
         databaseFile = params[0]
-        if not Path(databaseFile).exists():
-            raise FileNotFoundError()
         
         self._db = SQLite4(params[0])
         self._db.connect()
+
+        self._init_database()
+
+
+    def _init_database(self):
+        self._db.create_table("CacooCache", [
+            '"organizationKey"	TEXT NOT NULL',
+            '"folderId"	INTEGER NOT NULL'
+        ])
+        self._db.create_table("UserDiagram", [
+            '"userId"	INTEGER NOT NULL',
+            '"diagramId"	TEXT NOT NULL UNIQUE',
+            '"diagramName"	TEXT',
+            '"created"	INTEGER',
+            '"updated"	INTEGER'
+        ])
+        self._db.create_table("Users", [
+            '"userId"	INTEGER NOT NULL UNIQUE',
+            '"userName"	TEXT',
+            '"whitelisted"	INTEGER DEFAULT 1',
+        ])
+
 
     def execute(self, query, parameters = ()):
         def execute_query():

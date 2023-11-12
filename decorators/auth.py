@@ -33,7 +33,7 @@ class AuthSlash:
         @wraps(command)
         async def inner(interaction: discord.Interaction, *args, **kwargs):
             if interaction.user.id != _admin_id:
-                await interaction.response.send_message(Reactions.unauthorized) #TODO: модалку с ошибкой. FAIL. Это не работатет
+                await interaction.response.send_message(Reactions.unauthorized)
                 return 
             
             await command(interaction, *args, **kwargs)
@@ -45,7 +45,18 @@ class AuthSlash:
         @wraps(command)
         async def inner(interaction: discord.Interaction, *args, **kwargs):
             if not await database.user_in_whitelist(interaction.user.id):
-                await interaction.response.send_message(Reactions.unauthorized) #TODO: модалку с ошибкой. FAIL. Это не работатет
+                await interaction.response.send_message(Reactions.unauthorized)
+                return 
+            
+            await command(interaction, *args, **kwargs)
+
+        return inner
+    
+    def ON_WHITELIST_SERVER(command):
+        @wraps(command)
+        async def inner(interaction: discord.Interaction, *args, **kwargs):
+            if interaction.guild_id != config.get("whitelist-server-id"):
+                await interaction.response.send_message(Reactions.unauthorized)
                 return 
             
             await command(interaction, *args, **kwargs)

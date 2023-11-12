@@ -8,7 +8,7 @@ def random_str(l):
         s += random.choice(pool)
     return s
 
-database.init("database.db")
+database.init_connection("database.db")
 
 for i in range(100):
     delta = timedelta(days=3*i)

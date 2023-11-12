@@ -37,8 +37,7 @@ def timeit(command):
     async def inner(*args, **kwargs):
         startTime = time.time()
         res = await command(*args, **kwargs)
-        # logging.info(f"{args[0].id} - {(time.time()-startTime)*1000}ms")
-        logging.info(f"{(time.time()-startTime)*1000}ms")
+        logging.info(f"{command.__qualname__} {(time.time()-startTime)*1000}ms")
         return res
 
     return inner
@@ -66,3 +65,10 @@ def load_bar(progress: float) -> str:
 
 def get_application_dir() -> Path:
     return Path.cwd().joinpath(argv[0]).parent
+
+def setup_logging(level: str):
+    num_level = getattr(logging, level.upper(), None)
+    if not isinstance(num_level, int):
+        raise ValueError(f"Invalid log level: {num_level}")
+    
+    logging.basicConfig(level=num_level)

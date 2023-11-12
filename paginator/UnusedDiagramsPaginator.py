@@ -16,7 +16,7 @@ class UnusedDiagramsPaginator(DeletionPaginator):
         client: discord.Client,
         count: int,
         page_size: int = 10,
-        timeout: float | None = 180,
+        timeout: float | None = 600,
         prefix: str = "", 
     ):
         super().__init__(count, page_size, timeout, prefix)

@@ -32,7 +32,7 @@ class UserDiagramsCount:
 
 class RepositoryBase(ABC):
     @abstractmethod
-    def init(self, *params):
+    def init_connection(self, *params):
         pass
 
     @abstractmethod
